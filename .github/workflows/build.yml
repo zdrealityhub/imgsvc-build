@@ -34,6 +34,14 @@ jobs:
           token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
+      - name: Restore Linux build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            source/build
+            source/bin/linux-x64
+          key: linux-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**', 'source/scripts/build.js') }}
+
       - name: Validate archive password
         run: |
           set -euo pipefail
@@ -88,6 +96,13 @@ jobs:
           ref: ${{ inputs.source_ref }}
           token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
+
+      - name: Restore Windows build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            source/build-win-native
+          key: win-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**') }}
 
       - name: Validate archive password
         shell: bash
@@ -161,6 +176,20 @@ jobs:
           token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
+      - name: Restore macOS build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            source/build
+            source/bin/darwin-arm64
+          key: macos-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**', 'source/scripts/build.js') }}
+
+      - name: Restore Homebrew cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: homebrew-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml') }}
+
       - name: Validate archive password
         run: |
           set -euo pipefail
@@ -173,6 +202,8 @@ jobs:
           ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
 
       - name: Install native dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
           brew install cmake pkg-config jpeg-turbo libpng p7zip
 
