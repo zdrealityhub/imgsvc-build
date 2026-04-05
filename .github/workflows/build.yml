@@ -1,0 +1,130 @@
+name: Build All Platforms
+
+run-name: Build All Platforms (${{ inputs.release_tag }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Source branch, tag, or commit from zdrealityhub/imgsvc
+        required: true
+        default: main
+      release_tag:
+        description: Release tag associated with this build
+        required: true
+        default: manual
+      build_no:
+        description: Build number associated with this build
+        required: true
+        default: "0"
+
+jobs:
+  build-linux-x64:
+    name: Build Linux x64
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Checkout private source repo
+        uses: actions/checkout@v4
+        with:
+          repository: zdrealityhub/imgsvc
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.IMGSVC_ALL_REPOS_TOKEN }}
+          path: source
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config libjpeg-dev libpng-dev
+
+      - name: Build Linux x64 binary
+        working-directory: source
+        run: node scripts/build.js
+
+      - name: Stage artifact
+        run: |
+          mkdir -p artifacts
+          cp source/bin/linux-x64/imgsvc artifacts/imgsvc-linux-x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imgsvc-linux-x64-${{ inputs.release_tag }}
+          path: artifacts/imgsvc-linux-x64
+          if-no-files-found: error
+
+  build-win-x64:
+    name: Build Windows x64
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Checkout private source repo
+        uses: actions/checkout@v4
+        with:
+          repository: zdrealityhub/imgsvc
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.IMGSVC_ALL_REPOS_TOKEN }}
+          path: source
+
+      - name: Install Zig
+        run: |
+          set -eux
+          ZIG_VERSION=0.13.0
+          curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
+          tar -xf zig.tar.xz
+          echo "$PWD/zig-linux-x86_64-${ZIG_VERSION}" >> "$GITHUB_PATH"
+
+      - name: Build Windows x64 binary
+        working-directory: source
+        run: bash build-win64.sh
+
+      - name: Stage artifact
+        run: |
+          mkdir -p artifacts
+          cp source/build-win64/imgsvc.exe artifacts/imgsvc-win-x64.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imgsvc-win-x64-${{ inputs.release_tag }}
+          path: artifacts/imgsvc-win-x64.exe
+          if-no-files-found: error
+
+  build-macos-arm64:
+    name: Build macOS arm64
+    runs-on: macos-14
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Checkout private source repo
+        uses: actions/checkout@v4
+        with:
+          repository: zdrealityhub/imgsvc
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.IMGSVC_ALL_REPOS_TOKEN }}
+          path: source
+
+      - name: Install native dependencies
+        run: |
+          brew install cmake pkg-config jpeg-turbo libpng
+
+      - name: Build macOS arm64 binary
+        working-directory: source
+        run: node scripts/build.js
+
+      - name: Stage artifact
+        run: |
+          mkdir -p artifacts
+          cp source/bin/darwin-arm64/imgsvc artifacts/imgsvc-macos-arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imgsvc-macos-arm64-${{ inputs.release_tag }}
+          path: artifacts/imgsvc-macos-arm64
+          if-no-files-found: error
