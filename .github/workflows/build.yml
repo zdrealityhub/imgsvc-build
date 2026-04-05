@@ -31,7 +31,7 @@ jobs:
         with:
           repository: zdrealityhub/imgsvc
           ref: ${{ inputs.source_ref }}
-          token: ${{ secrets.IMGSVC_ALL_REPOS_TOKEN }}
+          token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
       - name: Install native dependencies
@@ -68,7 +68,7 @@ jobs:
         with:
           repository: zdrealityhub/imgsvc
           ref: ${{ inputs.source_ref }}
-          token: ${{ secrets.IMGSVC_ALL_REPOS_TOKEN }}
+          token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
       - name: Install Zig
@@ -108,7 +108,7 @@ jobs:
         with:
           repository: zdrealityhub/imgsvc
           ref: ${{ inputs.source_ref }}
-          token: ${{ secrets.IMGSVC_ALL_REPOS_TOKEN }}
+          token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
       - name: Install native dependencies
