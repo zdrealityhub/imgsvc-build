@@ -118,7 +118,10 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          cmake -S source -B source/build-win-native -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S source -B source/build-win-native -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS="-DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00" \
+            -DCMAKE_CXX_FLAGS="-DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00"
           cmake --build source/build-win-native --config Release
 
       - name: Stage artifact
