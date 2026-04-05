@@ -34,25 +34,43 @@ jobs:
           token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
+      - name: Validate archive password
+        run: |
+          set -euo pipefail
+          if [ -z "${ARTIFACT_ARCHIVE_PASSWORD:-}" ]; then
+            echo "ARTIFACT_ARCHIVE_PASSWORD is not available to this workflow."
+            echo "Grant it to repo: ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+        env:
+          ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
+
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake pkg-config libjpeg-dev libpng-dev
+          sudo apt-get install -y cmake pkg-config libjpeg-dev libpng-dev p7zip-full
 
       - name: Build Linux x64 binary
         working-directory: source
         run: node scripts/build.js
 
       - name: Stage artifact
+        env:
+          ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
         run: |
           mkdir -p artifacts
-          cp source/bin/linux-x64/imgsvc artifacts/imgsvc-linux-x64
+          cp source/bin/linux-x64/imgsvc artifacts/imgsvc
+          (
+            cd artifacts
+            7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-linux-x64.zip imgsvc >/dev/null
+          )
+          rm -f artifacts/imgsvc
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: imgsvc-linux-x64-${{ inputs.release_tag }}
-          path: artifacts/imgsvc-linux-x64
+          path: artifacts/imgsvc-linux-x64.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -71,9 +89,22 @@ jobs:
           token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
+      - name: Validate archive password
+        run: |
+          set -euo pipefail
+          if [ -z "${ARTIFACT_ARCHIVE_PASSWORD:-}" ]; then
+            echo "ARTIFACT_ARCHIVE_PASSWORD is not available to this workflow."
+            echo "Grant it to repo: ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+        env:
+          ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
+
       - name: Install Zig
         run: |
           set -eux
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full
           ZIG_VERSION=0.13.0
           curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
           tar -xf zig.tar.xz
@@ -84,15 +115,22 @@ jobs:
         run: bash build-win64.sh
 
       - name: Stage artifact
+        env:
+          ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
         run: |
           mkdir -p artifacts
-          cp source/build-win64/imgsvc.exe artifacts/imgsvc-win-x64.exe
+          cp source/build-win64/imgsvc.exe artifacts/imgsvc.exe
+          (
+            cd artifacts
+            7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-win-x64.zip imgsvc.exe >/dev/null
+          )
+          rm -f artifacts/imgsvc.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: imgsvc-win-x64-${{ inputs.release_tag }}
-          path: artifacts/imgsvc-win-x64.exe
+          path: artifacts/imgsvc-win-x64.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -111,23 +149,41 @@ jobs:
           token: ${{ secrets.IMGSVC_SOURCE_READ }}
           path: source
 
+      - name: Validate archive password
+        run: |
+          set -euo pipefail
+          if [ -z "${ARTIFACT_ARCHIVE_PASSWORD:-}" ]; then
+            echo "ARTIFACT_ARCHIVE_PASSWORD is not available to this workflow."
+            echo "Grant it to repo: ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+        env:
+          ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
+
       - name: Install native dependencies
         run: |
-          brew install cmake pkg-config jpeg-turbo libpng
+          brew install cmake pkg-config jpeg-turbo libpng p7zip
 
       - name: Build macOS arm64 binary
         working-directory: source
         run: node scripts/build.js
 
       - name: Stage artifact
+        env:
+          ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
         run: |
           mkdir -p artifacts
-          cp source/bin/darwin-arm64/imgsvc artifacts/imgsvc-macos-arm64
+          cp source/bin/darwin-arm64/imgsvc artifacts/imgsvc
+          (
+            cd artifacts
+            7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-macos-arm64.zip imgsvc >/dev/null
+          )
+          rm -f artifacts/imgsvc
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: imgsvc-macos-arm64-${{ inputs.release_tag }}
-          path: artifacts/imgsvc-macos-arm64
+          path: artifacts/imgsvc-macos-arm64.zip
           if-no-files-found: error
           retention-days: 1
