@@ -54,6 +54,7 @@ jobs:
           name: imgsvc-linux-x64-${{ inputs.release_tag }}
           path: artifacts/imgsvc-linux-x64
           if-no-files-found: error
+          retention-days: 1
 
   build-win-x64:
     name: Build Windows x64
@@ -93,6 +94,7 @@ jobs:
           name: imgsvc-win-x64-${{ inputs.release_tag }}
           path: artifacts/imgsvc-win-x64.exe
           if-no-files-found: error
+          retention-days: 1
 
   build-macos-arm64:
     name: Build macOS arm64
@@ -128,3 +130,4 @@ jobs:
           name: imgsvc-macos-arm64-${{ inputs.release_tag }}
           path: artifacts/imgsvc-macos-arm64
           if-no-files-found: error
+          retention-days: 1
