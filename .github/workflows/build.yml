@@ -76,7 +76,7 @@ jobs:
 
   build-win-x64:
     name: Build Windows x64
-    runs-on: ubuntu-24.04
+    runs-on: windows-2022
     steps:
       - name: Checkout build repo
         uses: actions/checkout@v4
@@ -90,6 +90,7 @@ jobs:
           path: source
 
       - name: Validate archive password
+        shell: bash
         run: |
           set -euo pipefail
           if [ -z "${ARTIFACT_ARCHIVE_PASSWORD:-}" ]; then
@@ -100,26 +101,33 @@ jobs:
         env:
           ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
 
-      - name: Install Zig
-        run: |
-          set -eux
-          sudo apt-get update
-          sudo apt-get install -y p7zip-full
-          ZIG_VERSION=0.13.0
-          curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
-          tar -xf zig.tar.xz
-          echo "$PWD/zig-linux-x86_64-${ZIG_VERSION}" >> "$GITHUB_PATH"
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-libpng
+            p7zip
 
       - name: Build Windows x64 binary
-        working-directory: source
-        run: bash build-win64.sh
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake -S source -B source/build-win-native -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build source/build-win-native --config Release
 
       - name: Stage artifact
+        shell: msys2 {0}
         env:
           ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
         run: |
           mkdir -p artifacts
-          cp source/build-win64/imgsvc.exe artifacts/imgsvc.exe
+          cp source/build-win-native/imgsvc.exe artifacts/imgsvc.exe
           (
             cd artifacts
             7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-win-x64.zip imgsvc.exe >/dev/null
