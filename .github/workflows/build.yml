@@ -131,21 +131,38 @@ jobs:
         with:
           arch: x64
 
-      - name: Bootstrap vcpkg
+      - name: Resolve vcpkg
+        id: vcpkg
         shell: pwsh
         run: |
-          if (-not (Test-Path vcpkg)) {
-            git clone --depth 1 https://github.com/microsoft/vcpkg vcpkg
+          $root = $env:VCPKG_ROOT
+          $toolchain = if ($root) { Join-Path $root 'scripts\buildsystems\vcpkg.cmake' } else { $null }
+
+          if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path $toolchain)) {
+            $root = Join-Path $PWD 'vcpkg'
+            $toolchain = Join-Path $root 'scripts\buildsystems\vcpkg.cmake'
+
+            if (-not (Test-Path $root)) {
+              git clone --depth 1 https://github.com/microsoft/vcpkg $root
+            }
           }
 
-          if (-not (Test-Path vcpkg\vcpkg.exe)) {
-            & .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          $exe = Join-Path $root 'vcpkg.exe'
+          if (-not (Test-Path $exe)) {
+            & (Join-Path $root 'bootstrap-vcpkg.bat') -disableMetrics
           }
+
+          Write-Host "Using vcpkg root: $root"
+          Write-Host "Using vcpkg exe: $exe"
+          Write-Host "Using vcpkg toolchain: $toolchain"
+          "root=$root" >> $env:GITHUB_OUTPUT
+          "exe=$exe" >> $env:GITHUB_OUTPUT
+          "toolchain=$toolchain" >> $env:GITHUB_OUTPUT
 
       - name: Install Windows dependencies
         shell: pwsh
         run: |
-          & .\vcpkg\vcpkg.exe install libjpeg-turbo:x64-windows-static libpng:x64-windows-static
+          & "${{ steps.vcpkg.outputs.exe }}" install libjpeg-turbo:x64-windows-static libpng:x64-windows-static
 
       - name: Verify Windows toolchain shell
         shell: pwsh
@@ -163,7 +180,7 @@ jobs:
         shell: pwsh
         working-directory: source
         env:
-          CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake
+          CMAKE_TOOLCHAIN_FILE: ${{ steps.vcpkg.outputs.toolchain }}
           VCPKG_TARGET_TRIPLET: x64-windows-static
           IMGSVC_WINDOWS_GENERATOR: Visual Studio 17 2022
         run: |
