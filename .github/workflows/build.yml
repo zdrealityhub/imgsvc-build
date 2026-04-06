@@ -125,6 +125,7 @@ jobs:
         with:
           cache: true
           update: true
+          path-type: inherit
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-cmake
@@ -133,6 +134,18 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libpng
             p7zip
+
+      - name: Verify Windows toolchain shell
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          echo "PATH=$PATH"
+          command -v node
+          node --version
+          command -v cmake
+          command -v gcc
+          command -v objdump
+          command -v ldd
 
       - name: Build Windows x64 binary
         shell: msys2 {0}
