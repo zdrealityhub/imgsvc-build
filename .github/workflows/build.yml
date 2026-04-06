@@ -108,106 +108,91 @@ jobs:
             source/bin/win32-x64
           key: win-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**', 'source/scripts/build.js') }}
 
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg/downloads
+            vcpkg/packages
+            vcpkg/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'source/CMakeLists.txt') }}
+
       - name: Validate archive password
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          if [ -z "${ARTIFACT_ARCHIVE_PASSWORD:-}" ]; then
-            echo "ARTIFACT_ARCHIVE_PASSWORD is not available to this workflow."
-            echo "Grant it to repo: ${GITHUB_REPOSITORY}"
-            exit 1
-          fi
+          if ([string]::IsNullOrWhiteSpace($env:ARTIFACT_ARCHIVE_PASSWORD)) {
+            throw "ARTIFACT_ARCHIVE_PASSWORD is not available to this workflow."
+          }
         env:
           ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
 
-      - name: Set up MSYS2
-        uses: msys2/setup-msys2@v2
+      - name: Set up MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          cache: true
-          update: true
-          path-type: inherit
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-pkgconf
-            mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libpng
-            p7zip
+          arch: x64
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          if (-not (Test-Path vcpkg)) {
+            git clone --depth 1 https://github.com/microsoft/vcpkg vcpkg
+          }
+
+          if (-not (Test-Path vcpkg\vcpkg.exe)) {
+            & .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          }
+
+      - name: Install Windows dependencies
+        shell: pwsh
+        run: |
+          & .\vcpkg\vcpkg.exe install libjpeg-turbo:x64-windows-static libpng:x64-windows-static
 
       - name: Verify Windows toolchain shell
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          set -euo pipefail
-          echo "PATH=$PATH"
-          command -v node
+          Write-Host "PATH=$env:PATH"
+          where.exe node
           node --version
-          command -v cmake
-          command -v gcc
-          command -v objdump
-          command -v ldd
+          where.exe cmake
+          where.exe cl
+          where.exe link
+          where.exe dumpbin
+          where.exe 7z
 
       - name: Build Windows x64 binary
-        shell: msys2 {0}
+        shell: pwsh
         working-directory: source
-        run: node scripts/build.js
+        env:
+          CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake
+          VCPKG_TARGET_TRIPLET: x64-windows-static
+          IMGSVC_WINDOWS_GENERATOR: Visual Studio 17 2022
+        run: |
+          node scripts/build.js
 
       - name: Diagnose Windows payload
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          set -euo pipefail
-          echo "MSYSTEM=${MSYSTEM:-}"
-          echo "MINGW_PREFIX=${MINGW_PREFIX:-}"
-          echo "MSYSTEM_PREFIX=${MSYSTEM_PREFIX:-}"
-          echo "PATH=$PATH"
-
-          for tool in node gcc g++ objdump ldd cygpath 7z; do
-            echo "--- which ${tool} ---"
-            command -v "$tool" || true
-          done
-
-          echo "--- win32-x64 contents ---"
-          ls -la source/bin/win32-x64 || true
-
-          echo "--- win32-x64 files ---"
-          find source/bin/win32-x64 -maxdepth 1 -type f -print | sort || true
-
-          echo "--- objdump imports ---"
-          objdump -p source/bin/win32-x64/imgsvc.exe | sed -n '/DLL Name:/p' || true
-
-          echo "--- ldd output ---"
-          ldd source/bin/win32-x64/imgsvc.exe || true
-
-          dll_count=$(find source/bin/win32-x64 -maxdepth 1 -type f \( -iname '*.dll' -o -iname '*.DLL' \) | wc -l | tr -d ' ')
-          echo "DLL count in source/bin/win32-x64: ${dll_count}"
-          if [ "${dll_count}" -eq 0 ]; then
-            echo "No DLLs were staged into source/bin/win32-x64"
-            exit 1
-          fi
+          Get-ChildItem source\bin\win32-x64 | Format-Table -AutoSize
+          Write-Host "--- dumpbin /dependents ---"
+          dumpbin /dependents source\bin\win32-x64\imgsvc.exe
 
       - name: Stage artifact
-        shell: msys2 {0}
+        shell: pwsh
         env:
           ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
         run: |
-          mkdir -p artifacts
-          cp source/bin/win32-x64/* artifacts/
-
-          (
-            cd artifacts
-            7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-win-x64.zip * >/dev/null
-          )
-
-          find artifacts -maxdepth 1 -type f ! -name 'imgsvc-win-x64.zip' -delete
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Copy-Item source\bin\win32-x64\* artifacts\
+          Push-Location artifacts
+          & 7z a -tzip -mem=AES256 "-p$env:ARTIFACT_ARCHIVE_PASSWORD" imgsvc-win-x64.zip * | Out-Null
+          Pop-Location
+          Get-ChildItem artifacts -File | Where-Object { $_.Name -ne 'imgsvc-win-x64.zip' } | Remove-Item -Force
 
       - name: Diagnose Windows artifact archive
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          set -euo pipefail
-          echo "--- artifacts dir contents ---"
-          ls -la artifacts
-          echo "--- zip listing ---"
-          7z l artifacts/imgsvc-win-x64.zip
+          Get-ChildItem artifacts | Format-Table -AutoSize
+          & 7z l artifacts\imgsvc-win-x64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
