@@ -167,6 +167,8 @@ jobs:
 
       - name: Install Windows dependencies
         shell: pwsh
+        env:
+          VCPKG_ROOT: ${{ steps.vcpkg.outputs.root }}
         run: |
           & "${{ steps.vcpkg.outputs.exe }}" install libjpeg-turbo:x64-windows-static libpng:x64-windows-static
 
@@ -188,6 +190,7 @@ jobs:
         env:
           CMAKE_TOOLCHAIN_FILE: ${{ steps.vcpkg.outputs.toolchain }}
           VCPKG_TARGET_TRIPLET: x64-windows-static
+          VCPKG_ROOT: ${{ steps.vcpkg.outputs.root }}
           IMGSVC_WINDOWS_GENERATOR: Visual Studio 17 2022
         run: |
           node scripts/build.js
