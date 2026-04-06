@@ -105,7 +105,8 @@ jobs:
         with:
           path: |
             source/build-win-native
-          key: win-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**') }}
+            source/bin/win32-x64
+          key: win-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**', 'source/scripts/build.js') }}
 
       - name: Validate archive password
         shell: bash
@@ -135,13 +136,41 @@ jobs:
 
       - name: Build Windows x64 binary
         shell: msys2 {0}
+        working-directory: source
+        run: node scripts/build.js
+
+      - name: Diagnose Windows payload
+        shell: msys2 {0}
         run: |
           set -euo pipefail
-          cmake -S source -B source/build-win-native -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_FLAGS="-DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00" \
-            -DCMAKE_CXX_FLAGS="-DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00"
-          cmake --build source/build-win-native --config Release
+          echo "MSYSTEM=${MSYSTEM:-}"
+          echo "MINGW_PREFIX=${MINGW_PREFIX:-}"
+          echo "MSYSTEM_PREFIX=${MSYSTEM_PREFIX:-}"
+          echo "PATH=$PATH"
+
+          for tool in node gcc g++ objdump ldd cygpath 7z; do
+            echo "--- which ${tool} ---"
+            command -v "$tool" || true
+          done
+
+          echo "--- win32-x64 contents ---"
+          ls -la source/bin/win32-x64 || true
+
+          echo "--- win32-x64 files ---"
+          find source/bin/win32-x64 -maxdepth 1 -type f -print | sort || true
+
+          echo "--- objdump imports ---"
+          objdump -p source/bin/win32-x64/imgsvc.exe | sed -n '/DLL Name:/p' || true
+
+          echo "--- ldd output ---"
+          ldd source/bin/win32-x64/imgsvc.exe || true
+
+          dll_count=$(find source/bin/win32-x64 -maxdepth 1 -type f \( -iname '*.dll' -o -iname '*.DLL' \) | wc -l | tr -d ' ')
+          echo "DLL count in source/bin/win32-x64: ${dll_count}"
+          if [ "${dll_count}" -eq 0 ]; then
+            echo "No DLLs were staged into source/bin/win32-x64"
+            exit 1
+          fi
 
       - name: Stage artifact
         shell: msys2 {0}
@@ -149,12 +178,23 @@ jobs:
           ARTIFACT_ARCHIVE_PASSWORD: ${{ secrets.ARTIFACT_ARCHIVE_PASSWORD }}
         run: |
           mkdir -p artifacts
-          cp source/build-win-native/imgsvc.exe artifacts/imgsvc.exe
+          cp source/bin/win32-x64/* artifacts/
+
           (
             cd artifacts
-            7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-win-x64.zip imgsvc.exe >/dev/null
+            7z a -tzip -mem=AES256 -p"${ARTIFACT_ARCHIVE_PASSWORD}" imgsvc-win-x64.zip * >/dev/null
           )
-          rm -f artifacts/imgsvc.exe
+
+          find artifacts -maxdepth 1 -type f ! -name 'imgsvc-win-x64.zip' -delete
+
+      - name: Diagnose Windows artifact archive
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          echo "--- artifacts dir contents ---"
+          ls -la artifacts
+          echo "--- zip listing ---"
+          7z l artifacts/imgsvc-win-x64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
