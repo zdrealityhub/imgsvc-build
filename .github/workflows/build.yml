@@ -106,16 +106,27 @@ jobs:
           path: |
             source/build-win-native
             source/bin/win32-x64
-          key: win-build-${{ runner.os }}-${{ inputs.source_ref }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**', 'source/scripts/build.js') }}
+          key: win-build-${{ runner.os }}-${{ hashFiles('source/CMakeLists.txt', 'source/server.cpp', 'source/include/**', 'source/scripts/build.js') }}
+          restore-keys: |
+            win-build-${{ runner.os }}-
 
       - name: Restore vcpkg cache
         uses: actions/cache@v4
         with:
           path: |
+            vcpkg/bootstrap-vcpkg.bat
+            vcpkg/ports
+            vcpkg/ports.cmake
+            vcpkg/scripts
+            vcpkg/triplets
+            vcpkg/vcpkg.exe
+            vcpkg/versions
             vcpkg/downloads
             vcpkg/packages
             vcpkg/installed
           key: vcpkg-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'source/CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
 
       - name: Validate archive password
         shell: pwsh
