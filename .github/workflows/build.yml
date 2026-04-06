@@ -135,16 +135,11 @@ jobs:
         id: vcpkg
         shell: pwsh
         run: |
-          $root = $env:VCPKG_ROOT
-          $toolchain = if ($root) { Join-Path $root 'scripts\buildsystems\vcpkg.cmake' } else { $null }
+          $root = Join-Path $PWD 'vcpkg'
+          $toolchain = Join-Path $root 'scripts\buildsystems\vcpkg.cmake'
 
-          if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path $toolchain)) {
-            $root = Join-Path $PWD 'vcpkg'
-            $toolchain = Join-Path $root 'scripts\buildsystems\vcpkg.cmake'
-
-            if (-not (Test-Path $root)) {
-              git clone --depth 1 https://github.com/microsoft/vcpkg $root
-            }
+          if (-not (Test-Path $root)) {
+            git clone --depth 1 https://github.com/microsoft/vcpkg $root
           }
 
           $exe = Join-Path $root 'vcpkg.exe'
